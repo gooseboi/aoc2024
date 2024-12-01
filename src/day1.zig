@@ -1081,5 +1081,16 @@ pub fn part2(s: []const u8, alloc: std.mem.Allocator) !u64 {
     const num2 = result.arr2;
     defer num2.deinit();
 
-    return result.arr1.items.len;
+    var sum: u64 = 0;
+    for (num1.items) |v1| {
+        var count: u64 = 0;
+        for (num2.items) |v2| {
+            if (v2 == v1) {
+                count += 1;
+            }
+        }
+        sum += v1 * count;
+    }
+
+    return sum;
 }
