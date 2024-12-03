@@ -1013,14 +1013,14 @@ pub const puzzle: []const u8 =
     \\35 33 30 27 26 25 24 23
 ;
 
-fn parseInput(s: []const u8, alloc: std.mem.Allocator) !ArrayList(ArrayList(u32)) {
+fn parseInput(s: []const u8, alloc: std.mem.Allocator) !ArrayList(ArrayList(i32)) {
     var iter = std.mem.splitScalar(u8, s, '\n');
-    var lines = ArrayList(ArrayList(u32)).init(alloc);
+    var lines = ArrayList(ArrayList(i32)).init(alloc);
     while (iter.next()) |line| {
-        var vals = ArrayList(u32).init(alloc);
+        var vals = ArrayList(i32).init(alloc);
         var line_iter = std.mem.splitScalar(u8, line, ' ');
         while (line_iter.next()) |split| {
-            const val = try std.fmt.parseInt(u32, split, 10);
+            const val = try std.fmt.parseInt(i32, split, 10);
             try vals.append(val);
         }
         try lines.append(vals);
@@ -1032,9 +1032,26 @@ fn parseInput(s: []const u8, alloc: std.mem.Allocator) !ArrayList(ArrayList(u32)
 pub fn run(alloc: std.mem.Allocator) [4]u64 {
     const val1 = part1(example, alloc) catch unreachable;
     const val2 = part1(puzzle, alloc) catch unreachable;
-    // const val3 = part2(sample, alloc) catch unreachable;
-    // const val4 = part2(puzzle, alloc) catch unreachable;
-    return .{ val1, val2, 0, 0 };
+    const val3 = part2(example, alloc) catch unreachable;
+    const val4 = part2(puzzle, alloc) catch unreachable;
+    return .{ val1, val2, val3, val4 };
+}
+
+fn valid(arr: []const i32) bool {
+    var oldDiff: i32 = 0;
+    for (0..(arr.len - 1)) |i| {
+        const valPrev = arr.ptr[i];
+        const valCurr = arr.ptr[i + 1];
+
+        const diff = valCurr - valPrev;
+        const absDiff = @abs(diff);
+
+        if ((oldDiff * diff < 0) or (absDiff < 1 or absDiff > 3)) {
+            return false;
+        }
+        oldDiff = diff;
+    }
+    return true;
 }
 
 pub fn part1(s: []const u8, alloc: std.mem.Allocator) !u64 {
@@ -1048,24 +1065,87 @@ pub fn part1(s: []const u8, alloc: std.mem.Allocator) !u64 {
 
     var sum: u64 = 0;
     for (input.items) |inner| {
-        sum += 1;
-        var oldDiff: i32 = 0;
-        for (0..(inner.items.len - 1)) |i| {
-            const valPrev: i32 = @intCast(inner.items[i]);
-            const valCurr: i32 = @intCast(inner.items[i + 1]);
+        if (valid(inner.items)) {
+            sum += 1;
+        }
+    }
 
-            const diff = valCurr - valPrev;
-            if (oldDiff * diff < 0) {
-                sum -= 1;
-                break;
+    return sum;
+}
+
+fn valid2(arr: []const i32, idx: ?usize) bool {
+    var oldDiff: i32 = 0;
+
+    // Consider removing the first one
+    // special case for things like { 55, 52, 53, 54, 56, 57 },
+    // because the first diff is valid, but then the next is not, because it is
+    // not the same direction as before, and removing the first value is the
+    // only special case for which this matters.
+    if (idx == null and valid2(arr, 0)) {
+        return true;
+    }
+
+    for (0..(arr.len - 1)) |i| {
+        var iPrev: ?usize = null;
+        if (idx) |val| {
+            if (val == i) {
+                if (i == 0) {
+                    continue;
+                }
+                iPrev = i - 1;
+            } else {
+                iPrev = i;
+            }
+        } else {
+            iPrev = i;
+        }
+        const idxPrev = iPrev.?;
+        const valPrev = arr[idxPrev];
+
+        var iCurr: ?usize = null;
+        if (idx) |val| {
+            if (val == i + 1) {
+                if (i == arr.len - 2) {
+                    continue;
+                }
+                iCurr = i + 2;
+            } else {
+                iCurr = i + 1;
+            }
+        } else {
+            iCurr = i + 1;
+        }
+        const idxCurr = iCurr.?;
+        const valCurr = arr[idxCurr];
+
+        const diff = valCurr - valPrev;
+
+        if ((oldDiff * diff < 0) or (@abs(diff) < 1 or @abs(diff) > 3)) {
+            if (idx != null) {
+                return false;
             }
 
-            const absDiff = @abs(diff);
-            if (absDiff < 1 or absDiff > 3) {
-                sum -= 1;
-                break;
-            }
-            oldDiff = diff;
+            if (valid2(arr, idxPrev) or valid2(arr, idxCurr)) return true;
+            return false;
+        }
+        oldDiff = diff;
+    }
+    return true;
+}
+
+pub fn part2(s: []const u8, alloc: std.mem.Allocator) !u64 {
+    const input = try parseInput(s, alloc);
+    defer {
+        for (input.items) |item| {
+            item.deinit();
+        }
+        input.deinit();
+    }
+
+    var sum: u64 = 0;
+    for (input.items) |inner| {
+        if (valid2(inner.items, null)) {
+            sum += 1;
         }
     }
 
