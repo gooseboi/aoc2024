@@ -160,9 +160,9 @@ pub const puzzle: []const u8 =
 pub fn run(alloc: std.mem.Allocator) [4]u64 {
     const val1 = part1(example, alloc) catch unreachable;
     const val2 = part1(puzzle, alloc) catch unreachable;
-    // const val3 = part2(example2, alloc) catch unreachable;
-    // const val4 = part2(puzzle, alloc) catch unreachable;
-    return .{ val1, val2, 0, 0 };
+    const val3 = part2(example, alloc) catch unreachable;
+    const val4 = part2(puzzle, alloc) catch unreachable;
+    return .{ val1, val2, val3, val4 };
 }
 
 const ParseResult = struct {
@@ -257,6 +257,54 @@ pub fn part1(s: []const u8, alloc: std.mem.Allocator) !u64 {
                 count += if (cond_backward) 1 else 0;
             }
         }
+    }
+
+    return count;
+}
+
+pub fn part2(s: []const u8, alloc: std.mem.Allocator) !u64 {
+    var result = try parse(s, alloc);
+    defer result.deinit();
+
+    const items = result.bytes.items;
+    const row_len = result.row_len;
+    var count: u64 = 0;
+    for (0..items.len) |i| {
+        if (i >= items.len - row_len * 2 - 2) {
+            continue;
+        }
+
+        const idx_primary1 = i + row_len * 0 + 0;
+        const idx_primary2 = i + row_len * 1 + 1;
+        const idx_primary3 = i + row_len * 2 + 2;
+        const row_idx_primary1 = idx_primary1 % row_len;
+        const row_idx_primary2 = idx_primary2 % row_len;
+        const row_idx_primary3 = idx_primary3 % row_len;
+
+        if (row_idx_primary1 + 1 != row_idx_primary2 or row_idx_primary2 + 1 != row_idx_primary3) {
+            continue;
+        }
+
+        const cond_primary_forward = items[idx_primary1] == 'M' and items[idx_primary2] == 'A' and items[idx_primary3] == 'S';
+        const cond_primary_backward = items[idx_primary1] == 'S' and items[idx_primary2] == 'A' and items[idx_primary3] == 'M';
+
+        const idx_secondary1 = (i + 2) + row_len * 0 - 0;
+        const idx_secondary2 = (i + 2) + row_len * 1 - 1;
+        const idx_secondary3 = (i + 2) + row_len * 2 - 2;
+        const row_idx_secondary1 = idx_secondary1 % row_len;
+        const row_idx_secondary2 = idx_secondary2 % row_len;
+        const row_idx_secondary3 = idx_secondary3 % row_len;
+
+        if (row_idx_secondary1 != row_idx_secondary2 + 1 or row_idx_secondary2 != row_idx_secondary3 + 1) {
+            continue;
+        }
+
+        const cond_secondary_forward = items[idx_secondary1] == 'M' and items[idx_secondary2] == 'A' and items[idx_secondary3] == 'S';
+        const cond_secondary_backward = items[idx_secondary1] == 'S' and items[idx_secondary2] == 'A' and items[idx_secondary3] == 'M';
+
+        const cond_primary = cond_primary_forward or cond_primary_backward;
+        const cond_secondary = cond_secondary_forward or cond_secondary_backward;
+        count += if (cond_primary and cond_secondary) 1 else 0;
     }
 
     return count;
