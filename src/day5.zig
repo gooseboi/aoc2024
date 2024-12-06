@@ -1405,9 +1405,9 @@ pub const puzzle: []const u8 =
 pub fn run(alloc: std.mem.Allocator) [4]u64 {
     const val1 = part1(example, alloc) catch unreachable;
     const val2 = part1(puzzle, alloc) catch unreachable;
-    // const val3 = part2(example, alloc) catch unreachable;
-    // const val4 = part2(puzzle, alloc) catch unreachable;
-    return .{ val1, val2, 0, 0 };
+    const val3 = part2(example, alloc) catch unreachable;
+    const val4 = part2(puzzle, alloc) catch unreachable;
+    return .{ val1, val2, val3, val4 };
 }
 
 const ParseResult = struct {
@@ -1471,7 +1471,55 @@ pub fn part1(s: []const u8, alloc: std.mem.Allocator) !u64 {
         }
         if (valid) {
             sum += seq.items[seq.items.len / 2];
-            std.debug.print("valid {any}\n", .{seq.items});
+        }
+    }
+
+    return sum;
+}
+
+fn goesBefore(rules: []Tuple(&.{ u32, u32 }), val1: u32, val2: u32) bool {
+    for (rules) |rule| {
+        if (rule[0] == val1 and rule[1] == val2) {
+            return true;
+        }
+
+        if (rule[0] == val2 and rule[1] == val1) {
+            return false;
+        }
+    }
+    return false;
+}
+
+pub fn part2(s: []const u8, alloc: std.mem.Allocator) !u64 {
+    const result = try parse(s, alloc);
+    defer result.rules.deinit();
+    defer {
+        for (result.input.items) |item| {
+            item.deinit();
+        }
+        result.input.deinit();
+    }
+
+    var sum: u64 = 0;
+    for (result.input.items) |seq| {
+        var valid = true;
+        for (result.rules.items) |rule| {
+            const idx1 = std.mem.indexOfScalar(u32, seq.items, rule[0]);
+            const idx2 = std.mem.indexOfScalar(u32, seq.items, rule[1]);
+            if (idx1 != null and idx2 != null) {
+                if (idx1.? > idx2.?) {
+                    valid = false;
+                    break;
+                }
+            }
+        }
+        if (!valid) {
+            const new_seq: ArrayList(u32) = try seq.clone();
+            defer new_seq.deinit();
+            std.debug.print("before {any}\n", .{new_seq.items});
+            std.mem.sort(u32, new_seq.items, result.rules.items, goesBefore);
+            std.debug.print("after {any}\n", .{new_seq.items});
+            sum += new_seq.items[new_seq.items.len / 2];
         }
     }
 
