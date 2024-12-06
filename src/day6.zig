@@ -150,9 +150,9 @@ pub const puzzle: []const u8 =
 pub fn run(alloc: std.mem.Allocator) [4]u64 {
     const val1 = part1(example, alloc) catch unreachable;
     const val2 = part1(puzzle, alloc) catch unreachable;
-    // const val3 = part2(example, alloc) catch unreachable;
-    // const val4 = part2(puzzle, alloc) catch unreachable;
-    return .{ val1, val2, 0, 0 };
+    const val3 = part2(example, alloc) catch unreachable;
+    const val4 = part2(puzzle, alloc) catch unreachable;
+    return .{ val1, val2, val3, val4 };
 }
 
 const Board = struct {
@@ -164,10 +164,10 @@ const Board = struct {
 
     pub fn advance(self: *Self) bool {
         const new_pos = switch (self.data.items[self.cursor_pos]) {
-            '^' => self.cursor_pos + 0 - 1 * self.row_len,
+            '^' => if (self.cursor_pos >= self.row_len) self.cursor_pos + 0 - 1 * self.row_len else return false,
             '>' => self.cursor_pos + 1 + 0 * self.row_len,
             'v' => self.cursor_pos + 0 + 1 * self.row_len,
-            '<' => self.cursor_pos - 1 + 0 * self.row_len,
+            '<' => if (self.cursor_pos > 0) self.cursor_pos - 1 + 0 * self.row_len else return false,
             else => unreachable,
         };
 
@@ -208,6 +208,34 @@ const Board = struct {
     pub fn visited(self: *const Self) u64 {
         return std.mem.count(u8, self.data.items, &[_]u8{'X'});
     }
+
+    pub fn clone(self: *const Self) !Self {
+        return .{
+            .row_len = self.row_len,
+            .data = try self.data.clone(),
+            .cursor_pos = self.cursor_pos,
+        };
+    }
+
+    pub fn checkLoop(self: *Self, alloc: std.mem.Allocator) !bool {
+        var visited_cells = std.AutoHashMap(usize, [4]u8).init(alloc);
+        defer visited_cells.deinit();
+        try visited_cells.put(self.cursor_pos, [4]u8{ self.data.items[self.cursor_pos], 0, 0, 0 });
+        while (self.advance()) {
+            if (visited_cells.getPtr(self.cursor_pos)) |vals| {
+                if (std.mem.indexOfScalar(u8, vals, self.data.items[self.cursor_pos])) |_| {
+                    return true;
+                }
+                const idx = std.mem.indexOfScalar(u8, vals, 0) orelse unreachable;
+                vals[idx] = self.data.items[self.cursor_pos];
+            } else {
+                const arr = [4]u8{ self.data.items[self.cursor_pos], 0, 0, 0 };
+                try visited_cells.put(self.cursor_pos, arr);
+            }
+        }
+
+        return false;
+    }
 };
 
 fn parse(s: []const u8, alloc: std.mem.Allocator) !Board {
@@ -239,8 +267,33 @@ pub fn part1(s: []const u8, alloc: std.mem.Allocator) !u64 {
 }
 
 pub fn part2(s: []const u8, alloc: std.mem.Allocator) !u64 {
-    const result = try parse(s, alloc);
-    defer result.input.deinit();
+    const board = try parse(s, alloc);
+    defer board.data.deinit();
 
-    return 0;
+    var temp_board = try board.clone();
+    defer temp_board.data.deinit();
+
+    while (temp_board.advance()) {}
+
+    var collisions = ArrayList(usize).init(alloc);
+    defer collisions.deinit();
+    for (temp_board.data.items, 0..) |cell, i| {
+        if (cell == 'X') {
+            try collisions.append(i);
+        }
+    }
+
+    var sum: u64 = 0;
+    for (0..board.data.items.len) |i| {
+        if (std.mem.indexOfScalar(usize, collisions.items, i) == null) continue;
+        if (board.data.items[i] != '.') continue;
+
+        var new_board = try board.clone();
+        defer new_board.data.deinit();
+
+        new_board.data.items[i] = '#';
+        if (try new_board.checkLoop(alloc)) sum += 1;
+    }
+
+    return sum;
 }
